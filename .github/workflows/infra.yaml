@@ -33,7 +33,7 @@ jobs:
         cd terraform
         terraform init
         
-    - name: Terraform Destroy
+    - name: Terraform apply
       run: |
         cd terraform
-        terraform destroy -auto-approve
+        terraform apply -auto-approve
