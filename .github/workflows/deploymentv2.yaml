@@ -1,0 +1,79 @@
+name: Build, Push to Docker Hub, and Deploy to EKSon:
+  push:
+    branches: [ main ]
+    paths:
+      - 'v2/**'
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_HUB_REPO: miran77/nj-app
+  AWS_REGION: ap-northeast-1
+  EKS_CLUSTER_NAME: k8s-cluster
+  VERSION: v2
+jobs:
+  build-push-deploy:
+    name: Build, Push, and Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+    - name: Check Docker Hub repository and create if not exists
+      run: |
+        # Extract repository name from DOCKER_HUB_REPO
+        REPO_NAME=$(echo $DOCKER_HUB_REPO | cut -d'/' -f2)
+        
+        # Check if repository exists
+        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/$DOCKER_HUB_USERNAME/$REPO_NAME" > /dev/null 2>&1; then
+          echo "Repository does not exist. Creating it..."
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: JWT ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" \
+            -d '{"namespace":"'"$DOCKER_HUB_USERNAME"'","name":"'"$REPO_NAME"'","is_private":false,"description":"Created by GitHub Actions"}' \
+            "https://hub.docker.com/v2/repositories/"
+        else
+          echo "Repository already exists."
+        fi
+
+    - name: Build and push Docker image
+      run: |
+        if [ -z "$DOCKER_HUB_REPO" ]; then
+          echo "Error: DOCKER_HUB_REPO is empty or not set"
+          exit 1
+        fi
+        echo "Building image: ${DOCKER_HUB_REPO}:latest"
+        docker build -t "${DOCKER_HUB_REPO}:${VERSION}" .
+        docker push "${DOCKER_HUB_REPO}:${VERSION}"
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+    - name: Deploy to EKS
+      run: |
+       
+        sed -i "s|image_name|${{ env.DOCKER_HUB_REPO }}:${{env.VERSION}}|" kubernetes/deploymentv2.yaml
+        kubectl apply -f v2/deploymentv2.yaml
+        kubectl scale deployment canary-demo-app-v1 --replicas=2
+        
+        # Force update deployments
+        kubectl rollout restart deployment/canary-demo-app-v1
+        #kubectl rollout restart deployment/canary-demo-app-v2
+
+    - name: Verify deployments
+      run: |
+        kubectl get deployments
+        kubectl get pods
+        kubectl get services
