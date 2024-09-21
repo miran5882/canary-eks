@@ -19,6 +19,6 @@ spec:
     spec:
       containers:
       - name: canary-demo-app
-        image: your-docker-hub-username/canary-demo-app:v1
+        image: image_name
         ports:
         - containerPort: 3000
