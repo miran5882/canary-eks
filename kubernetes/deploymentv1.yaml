@@ -22,3 +22,5 @@ spec:
         image: image_name
         ports:
         - containerPort: 3000
+
+
