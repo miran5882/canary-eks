@@ -52,7 +52,7 @@ jobs:
       run: |
         # Navigate to the directory containing the Kubernetes manifests
         cd kubernetes # Adjust this path as needed
-        kubectl apply -f kubernetes/deploymentv1.yaml
+        kubectl apply -f deploymentv1.yaml
 
     - name: Verify deployment
       run: |
