@@ -3,7 +3,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'kubernetes/**'
+      - 'v1/**'
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_REPO: miran77/nj-app
