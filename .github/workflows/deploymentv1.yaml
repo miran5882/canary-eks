@@ -9,10 +9,9 @@ on:
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_REPO: ${{ secrets.DOCKER_USERNAME }}/nj-app
-  AWS_REGION: us-west-1
   EKS_CLUSTER_NAME: k8s-cluster
   VERSION: latest
-
+  REGION: us-west-1
 jobs:
   build-push-deploy:
     name: Build, Push, and Deploy
@@ -46,7 +45,7 @@ jobs:
 
     - name: Update kubeconfig
       run: |
-        aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+        aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.REGION }}
 
     - name: Deploy to EKS
       run: |
