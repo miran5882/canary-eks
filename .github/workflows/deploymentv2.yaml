@@ -63,7 +63,7 @@ jobs:
       run: |
         sed -i "s|image_name|${{ env.DOCKER_HUB_REPO }}:${{env.VERSION}}|" kubernetes/deploymentv2.yaml
         kubectl apply -f kubernetes/deploymentv2.yaml
-        
+        kubectl apply -f kubernetes/service.yaml
         # Scale down v1 deployment to 2 replicas
         kubectl scale deployment canary-demo-app-v1 --replicas=2
         
