@@ -5,3 +5,8 @@ metadata:
 spec:
   type: ClusterIP
   ports:
+  - port: 80        # The port the service will be exposed on
+      targetPort: 3000  # The port your application is running on in the container
+  selector:
+    app: canary-demo-app
+    version: v1
