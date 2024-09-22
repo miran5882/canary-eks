@@ -50,11 +50,3 @@ spec:
         env:
         - name: NODE_ENV
           value: "production"
-
-
-
-    - port: 80
-      targetPort: 3000
-  selector:
-    app: canary-demo-app
-    version: v1
