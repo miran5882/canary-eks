@@ -44,6 +44,7 @@ jobs:
       run: |
         cd kubernetes
         envsubst < deploymentv1.yaml | kubectl apply -f -
+        kubectl apply -f service1.yaml
         kubectl apply -f service.yaml
     - name: Verify deployment
       run: |
