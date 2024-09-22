@@ -1,9 +1,9 @@
 name: Build, Push to Docker Hub, and Deploy to EKS
-on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'v1/**'
+#on:
+ # push:
+  #  branches: [ main ]
+   # paths:
+    #  - 'v1/**'
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_REPO: miran77/nj-app
