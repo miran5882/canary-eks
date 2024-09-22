@@ -9,7 +9,7 @@ on:
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_REPO: ${{ secrets.DOCKER_USERNAME }}/nj-app
-  AWS_REGION: ap-northeast-1
+  AWS_REGION: us-west-1
   EKS_CLUSTER_NAME: k8s-cluster
   VERSION: latest
 
