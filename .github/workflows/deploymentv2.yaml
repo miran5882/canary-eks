@@ -1,9 +1,9 @@
 name: Build, Push to Docker Hub, and Deploy to EKS
-#on:
- # push:
-  #  branches: [ main ]
-   # paths:
-    #  - 'v2/**'
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'v2/**'
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_REPO: miran77/nj-app
@@ -17,13 +17,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
+    
     - name: Login to Docker Hub
       uses: docker/login-action@v1
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
+    
     - name: Check Docker Hub repository and create if not exists
       run: |
         REPO_NAME=$(echo $DOCKER_HUB_REPO | cut -d'/' -f2)
@@ -37,7 +37,7 @@ jobs:
         else
           echo "Repository already exists."
         fi
-
+    
     - name: Build and push Docker image
       run: |
         if [ -z "$DOCKER_HUB_REPO" ]; then
@@ -47,27 +47,41 @@ jobs:
         echo "Building image: ${DOCKER_HUB_REPO}:${VERSION}"
         docker build -t "${DOCKER_HUB_REPO}:${VERSION}" .
         docker push "${DOCKER_HUB_REPO}:${VERSION}"
-
+    
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-
+    
     - name: Update kubeconfig
       run: |
         aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-
+    
     - name: Deploy to EKS
       run: |
         sed -i "s|image_name|${{ env.DOCKER_HUB_REPO }}:${{env.VERSION}}|" kubernetes/deploymentv2.yaml
         kubectl apply -f kubernetes/deploymentv2.yaml
+        
+        # Scale down v1 deployment to 2 replicas
         kubectl scale deployment canary-demo-app-v1 --replicas=2
-        kubectl rollout restart deployment/canary-demo-app-v1
-
+        
+        # Update LoadBalancer endpoints to include both v1 and v2
+        V1_ENDPOINTS=$(kubectl get endpoints canary-demo-app-v1 -o jsonpath='{.subsets[0].addresses[*].ip}')
+        V2_ENDPOINTS=$(kubectl get endpoints canary-demo-app-v2 -o jsonpath='{.subsets[0].addresses[*].ip}')
+        
+        # Combine endpoints
+        ALL_ENDPOINTS="${V1_ENDPOINTS} ${V2_ENDPOINTS}"
+        
+        # Update LoadBalancer endpoints
+        for IP in $ALL_ENDPOINTS; do
+          kubectl patch endpoints canary-demo-app-lb --type=json -p='[{"op": "add", "path": "/subsets/0/addresses/-", "value": {"ip": "'$IP'"}}]'
+        done
+    
     - name: Verify deployments
       run: |
         kubectl get deployments
         kubectl get pods
         kubectl get services
+        kubectl describe endpoints canary-demo-app-lb
