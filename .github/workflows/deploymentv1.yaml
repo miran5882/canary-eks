@@ -1,5 +1,5 @@
 name: Build, Push to Docker Hub, and Deploy to EKS
-on:
+#on:
   push:
     branches: [ main ]
     paths:
