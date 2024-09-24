@@ -1,4 +1,4 @@
-name: Build, Push to Docker Hub, and Deploy to EKS
+name: Build, Push to Docker Hub, and Deploy to EKS (Canary V2)
 on:
   push:
     branches: [ main ]
@@ -24,28 +24,10 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
     
-    - name: Check Docker Hub repository and create if not exists
-      run: |
-        REPO_NAME=$(echo $DOCKER_HUB_REPO | cut -d'/' -f2)
-        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/$DOCKER_HUB_USERNAME/$REPO_NAME" > /dev/null 2>&1; then
-          echo "Repository does not exist. Creating it..."
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: JWT ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" \
-            -d '{"namespace":"'"$DOCKER_HUB_USERNAME"'","name":"'"$REPO_NAME"'","is_private":false,"description":"Created by GitHub Actions"}' \
-            "https://hub.docker.com/v2/repositories/"
-        else
-          echo "Repository already exists."
-        fi
-    
     - name: Build and push Docker image
       run: |
-        if [ -z "$DOCKER_HUB_REPO" ]; then
-          echo "Error: DOCKER_HUB_REPO is empty or not set"
-          exit 1
-        fi
         echo "Building image: ${DOCKER_HUB_REPO}:${VERSION}"
-        docker build -t "${DOCKER_HUB_REPO}:${VERSION}" .
+        docker build -t "${DOCKER_HUB_REPO}:${VERSION}" -f v2/Dockerfile v2
         docker push "${DOCKER_HUB_REPO}:${VERSION}"
     
     - name: Configure AWS credentials
@@ -61,27 +43,18 @@ jobs:
     
     - name: Deploy to EKS
       run: |
-        sed -i "s|image_name|${{ env.DOCKER_HUB_REPO }}:${{env.VERSION}}|" kubernetes/deploymentv2.yaml
+        sed -i "s|\${DOCKER_HUB_REPO}|${{ env.DOCKER_HUB_REPO }}|g" kubernetes/deploymentv2.yaml
+        sed -i "s|\${VERSION}|${{ env.VERSION }}|g" kubernetes/deploymentv2.yaml
         kubectl apply -f kubernetes/deploymentv2.yaml
-        kubectl apply -f kubernetes/service.yaml
-        # Scale down v1 deployment to 2 replicas
+        kubectl apply -f kubernetes/service-lb.yaml
+        
+        # Scale v1 and v2 deployments to ensure 50/50 split
         kubectl scale deployment canary-demo-app-v1 --replicas=2
-        
-        # Update LoadBalancer endpoints to include both v1 and v2
-        V1_ENDPOINTS=$(kubectl get endpoints canary-demo-app-v1 -o jsonpath='{.subsets[0].addresses[*].ip}')
-        V2_ENDPOINTS=$(kubectl get endpoints canary-demo-app-v2 -o jsonpath='{.subsets[0].addresses[*].ip}')
-        
-        # Combine endpoints
-        ALL_ENDPOINTS="${V1_ENDPOINTS} ${V2_ENDPOINTS}"
-        
-        # Update LoadBalancer endpoints
-        for IP in $ALL_ENDPOINTS; do
-          kubectl patch endpoints canary-demo-app-lb --type=json -p='[{"op": "add", "path": "/subsets/0/addresses/-", "value": {"ip": "'$IP'"}}]'
-        done
+        kubectl scale deployment canary-demo-app-v2 --replicas=2
     
     - name: Verify deployments
       run: |
         kubectl get deployments
         kubectl get pods
         kubectl get services
-        kubectl describe endpoints canary-demo-app-lb
+        kubectl describe service canary-demo-app-lb
