@@ -55,6 +55,3 @@ resource "aws_kms_alias" "eks" {
     ignore_changes = [name]
   }
 }
-
-
-
